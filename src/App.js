@@ -1,12 +1,8 @@
-import './App.css';
-import FaceAuthentication from './Pages/FaceAuthentication';
+import React from "react";
+import AppRouter from "./AppRouter";
 
-function App() {
-  return (
-    <div className="App">
-      <FaceAuthentication />
-    </div>
-  );
-}
+const App = () => {
+  return <AppRouter />;
+};
 
 export default App;

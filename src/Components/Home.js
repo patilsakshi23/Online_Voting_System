@@ -8,6 +8,7 @@ const Home = () => {
     <div>
       <h1>Online Voting System</h1>
       <button onClick={() => navigate("/voter")}>Voter</button>
+      <button onClick={() => navigate("/register")}>Register</button>
     </div>
   );
 };

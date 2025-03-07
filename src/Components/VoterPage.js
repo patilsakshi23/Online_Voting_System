@@ -10,8 +10,9 @@ const CenteredWrapper = styled.div`
 `;
 
 const Container = styled.div`
+  width: 750px;
+  height: 600px;
   padding: 1.5rem;
-  width: 32rem; /* Increased width */
   margin: 2rem auto;
   background: white;
   border-radius: 0.5rem;
@@ -24,7 +25,7 @@ const Container = styled.div`
 `;
 
 const Title = styled.h1`
-  font-size: 1.5rem;
+  font-size: 1.9rem;
   font-weight: bold;
   text-align: center;
   margin-bottom: 1.5rem;
@@ -36,7 +37,7 @@ const Title = styled.h1`
 
 const Label = styled.label`
   display: block;
-  font-size: 0.875rem;
+  font-size: 1.2  rem;
   font-weight: 500;
   color: #4a5568;
   margin-bottom: 0.5rem;
@@ -44,7 +45,7 @@ const Label = styled.label`
 
 const Select = styled.select`
   width: 100%;
-  padding: 0.7rem 0.75rem;
+  padding: 1rem 0.75rem;
   border: 1px solid #d1d5db;
   border-radius: 0.375rem;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
@@ -62,11 +63,11 @@ const Button = styled.button`
   width: 100%;
   background: #2563eb;
   color: white;
-  padding: 0.75rem 1rem;
+  padding: 1.2rem 1rem;
   border-radius: 0.375rem;
   border: none;
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 1.15rem;
   margin-top: 0.81rem;
 
   &:hover {

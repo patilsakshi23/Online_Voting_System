@@ -3,6 +3,10 @@ import styled, { keyframes } from 'styled-components';
 import Tesseract from 'tesseract.js';
 import maharashtraData from "../assets/Maharashtra.json";
 
+// In your Registration.js file
+import { database } from "../FirebaseConfig.js";
+import { ref, set } from "firebase/database";
+
 // Styled Components
 const Container = styled.div`
   max-width: 800px;
@@ -175,21 +179,21 @@ const Select = styled.select`
   }
 `;
 
-const TextArea = styled.textarea`
-  width: 100%;
-  padding: 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 16px;
-  transition: border-color 0.3s;
-  min-height: 100px;
-  resize: vertical;
+// const TextArea = styled.textarea`
+//   width: 100%;
+//   padding: 12px;
+//   border: 1px solid #ddd;
+//   border-radius: 4px;
+//   font-size: 16px;
+//   transition: border-color 0.3s;
+//   min-height: 100px;
+//   resize: vertical;
 
-  &:focus {
-    border-color: #3498db;
-    outline: none;
-  }
-`;
+//   &:focus {
+//     border-color: #3498db;
+//     outline: none;
+//   }
+// `;
 
 const ErrorMessage = styled.div`
   color: #e74c3c;
@@ -358,319 +362,412 @@ const SubmitButton = styled.button`
   }
 `;
 
+const CapturedImage = styled.img`
+  width: 100%;
+  height: 300px;
+  object-fit: contain;
+  border-radius: 8px;
+`;
 const StepContainer = styled.div``;
 
 const Registration = () => {
-    // State management
-    const [step, setStep] = useState(1);
-    const [formData, setFormData] = useState({
-      voterCardFile: null,
-      voterCardPreview: null,
+  // State management
+  const [step, setStep] = useState(1);
+  const [formData, setFormData] = useState({
+    voterCardFile: null,
+    voterCardPreview: null,
+    name: '',
+    fatherName: '',
+    voterNumber: '',
+    address: '',
+    dateOfBirth: '',
+    gender: '',
+    faceImage: null,
+    state: '',
+    district: '',
+    subDistrict: '',
+    village: '',
+    streetAddress: '',
+    zipCode: ''
+  });
+  const [errors, setErrors] = useState({});
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isOCRComplete, setIsOCRComplete] = useState(false);
+  const [extractionError, setExtractionError] = useState(false);
+  const [ocrProgress, setOcrProgress] = useState(0);
+  const [ocrText, setOcrText] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [capturedImage, setCapturedImage] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+
+  // Refs
+  const fileInputRef = useRef(null);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+
+  useEffect(() => {
+    console.log("Step changed to:", step);
+  }, [step]);
+
+  const openCamera = async () => {
+    setIsCameraOpen(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        streamRef.current = stream;
+      }
+    } catch (error) {
+      console.error("Error accessing camera:", error);
+      alert("Unable to access camera. Please check permissions.");
+    }
+  };
+  const capturePhoto = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (video && canvas) {
+      const context = canvas.getContext("2d");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = canvas.toDataURL("image/png");
+      setCapturedImage(imageData);
+      setFormData(prevData => ({
+        ...prevData,
+        voterCardFile: imageData, // Store captured image
+        voterCardPreview: imageData // Also update preview if needed
+      }));
+      stopCamera();
+    }
+  };
+
+  // Improved function to extract information from OCR text using regex patterns
+  const extractVoterInfo = (text) => {
+    console.log("Raw OCR text:", text);
+    
+    // Initialize extracted data object
+    const extractedData = {
       name: '',
       fatherName: '',
       voterNumber: '',
       address: '',
       dateOfBirth: '',
-      gender: '',
-      faceImage: null
-    });
-    const [errors, setErrors] = useState({});
-    const [isProcessing, setIsProcessing] = useState(false);
-    const [isOCRComplete, setIsOCRComplete] = useState(false);
-    const [extractionError, setExtractionError] = useState(false);
-    const [ocrProgress, setOcrProgress] = useState(0);
-    const [ocrText, setOcrText] = useState('');
+      gender: ''
+    };
+
+    // Store the raw OCR text for debugging
+    setOcrText(text);
     
-    // Refs
-    const fileInputRef = useRef(null);
-    const videoRef = useRef(null);
-    const canvasRef = useRef(null);
-    const streamRef = useRef(null);
-    useEffect(() => {
-        console.log("Step changed to:", step);
-      }, [step]);
-    // Improved function to extract information from OCR text using regex patterns
-    const extractVoterInfo = (text) => {
-      console.log("Raw OCR text:", text);
-      
-      // Initialize extracted data object
-      const extractedData = {
-        name: '',
-        fatherName: '',
-        voterNumber: '',
-        address: '',
-        dateOfBirth: '',
-        gender: ''
-      };
-  
-      // Store the raw OCR text for debugging
-      setOcrText(text);
-      
-      // Improved regex patterns for better extraction
-      
-      // Name pattern - more flexible to catch various formats
-      const namePatterns = [
-        /Name\s*[:|\s]\s*([A-Za-z\s.]+)/i,
-        /(?:Voter's Name|Elector's Name)[:|\s]\s*([A-Za-z\s.]+)/i,
-        /Name of Elector\s*[:|\s]\s*([A-Za-z\s.]+)/i
-      ];
-      
-      for (const pattern of namePatterns) {
-        const nameMatch = text.match(pattern);
-        if (nameMatch && nameMatch[1] && nameMatch[1].trim().length > 0) {
-          extractedData.name = nameMatch[1].trim();
+    // Improved regex patterns for better extraction
+    
+    // Name pattern - more flexible to catch various formats
+    const namePatterns = [
+      /Name\s*[:|\s]\s*([A-Za-z\s.]+)/i,
+      /(?:Voter's Name|Elector's Name)[:|\s]\s*([A-Za-z\s.]+)/i,
+      /Name of Elector\s*[:|\s]\s*([A-Za-z\s.]+)/i
+    ];
+    
+    for (const pattern of namePatterns) {
+      const nameMatch = text.match(pattern);
+      if (nameMatch && nameMatch[1] && nameMatch[1].trim().length > 0) {
+        extractedData.name = nameMatch[1].trim();
+        break;
+      }
+    }
+    
+    // Father's name pattern - more flexible
+    const fatherPatterns = [
+      /Father(?:'s)?\s*(?:Name)?\s*[:|\s]\s*([A-Za-z\s.]+)/i,
+      /(?:F|Father|Father's)\s*(?:Name)?\s*[:|\s]\s*([A-Za-z\s.]+)/i,
+      /Husband(?:'s)?\s*(?:Name)?\s*[:|\s]\s*([A-Za-z\s.]+)/i
+    ];
+    
+    for (const pattern of fatherPatterns) {
+      const fatherMatch = text.match(pattern);
+      if (fatherMatch && fatherMatch[1] && fatherMatch[1].trim().length > 0) {
+        extractedData.fatherName = fatherMatch[1].trim();
+        break;
+      }
+    }
+    
+    // Voter ID pattern (various formats)
+    const voterIDPatterns = [
+      /(?:Voter\s+(?:ID|Number)|Electoral\s+Roll\s+No|EPIC\s+No|Card\s+No)[.:|\s]*\s*([A-Z0-9]{6,12})/i,
+      /([A-Z]{3}[0-9]{7})/,  // Common format like ABC1234567
+      /(?:ID Number|ID No|Card No)[.:|\s]*\s*([A-Z0-9]{6,12})/i
+    ];
+    
+    for (const pattern of voterIDPatterns) {
+      const voterIDMatch = text.match(pattern);
+      if (voterIDMatch && voterIDMatch[1] && voterIDMatch[1].trim().length > 0) {
+        extractedData.voterNumber = voterIDMatch[1].trim();
+        break;
+      }
+    }
+    
+    // Date of Birth pattern - various formats
+    const dobPatterns = [
+      /(?:DOB|Date\s+of\s+Birth)[.:|\s]*\s*(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})/i,
+      /(?:Born\s+on|Birth\s+Date)[.:|\s]*\s*(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})/i,
+      /(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})/  // Just look for date format
+    ];
+    
+    for (const pattern of dobPatterns) {
+      const dobMatch = text.match(pattern);
+      if (dobMatch && dobMatch[1]) {
+        // Convert to YYYY-MM-DD format for the input field
+        const dobParts = dobMatch[1].split(/[-/.]/);
+        if (dobParts.length === 3) {
+          // Assuming DD-MM-YYYY format in voter card
+          let year = dobParts[2];
+          const month = dobParts[1].padStart(2, '0');
+          const day = dobParts[0].padStart(2, '0');
+          
+          // Handle 2-digit years
+          if (year.length === 2) {
+            const currentYear = new Date().getFullYear().toString();
+            const century = currentYear.substring(0, 2);
+            year = parseInt(year) > 50 ? `19${year}` : `${century}${year}`;
+          }
+          
+          extractedData.dateOfBirth = `${year}-${month}-${day}`;
           break;
         }
       }
-      
-      // Father's name pattern - more flexible
-      const fatherPatterns = [
-        /Father(?:'s)?\s*(?:Name)?\s*[:|\s]\s*([A-Za-z\s.]+)/i,
-        /(?:F|Father|Father's)\s*(?:Name)?\s*[:|\s]\s*([A-Za-z\s.]+)/i,
-        /Husband(?:'s)?\s*(?:Name)?\s*[:|\s]\s*([A-Za-z\s.]+)/i
-      ];
-      
-      for (const pattern of fatherPatterns) {
-        const fatherMatch = text.match(pattern);
-        if (fatherMatch && fatherMatch[1] && fatherMatch[1].trim().length > 0) {
-          extractedData.fatherName = fatherMatch[1].trim();
-          break;
+    }
+    
+    // Gender pattern
+    const genderPatterns = [
+      /(?:Gender|Sex)[.:|\s]*\s*(Male|Female|Other)/i,
+      /(?:Gender|Sex)[.:|\s]*\s*([MF])/i  // Look for M or F abbreviations
+    ];
+    
+    for (const pattern of genderPatterns) {
+      const genderMatch = text.match(pattern);
+      if (genderMatch && genderMatch[1]) {
+        // Handle M/F abbreviations
+        let gender = genderMatch[1];
+        if (gender.toLowerCase() === 'm') {
+          gender = 'Male';
+        } else if (gender.toLowerCase() === 'f') {
+          gender = 'Female';
+        } else {
+          // Capitalize first letter only
+          gender = gender.charAt(0).toUpperCase() + gender.slice(1).toLowerCase();
         }
+        extractedData.gender = gender;
+        break;
       }
-      
-      // Voter ID pattern (various formats)
-      const voterIDPatterns = [
-        /(?:Voter\s+(?:ID|Number)|Electoral\s+Roll\s+No|EPIC\s+No|Card\s+No)[.:|\s]*\s*([A-Z0-9]{6,12})/i,
-        /([A-Z]{3}[0-9]{7})/,  // Common format like ABC1234567
-        /(?:ID Number|ID No|Card No)[.:|\s]*\s*([A-Z0-9]{6,12})/i
-      ];
-      
-      for (const pattern of voterIDPatterns) {
-        const voterIDMatch = text.match(pattern);
-        if (voterIDMatch && voterIDMatch[1] && voterIDMatch[1].trim().length > 0) {
-          extractedData.voterNumber = voterIDMatch[1].trim();
-          break;
-        }
+    }
+    
+    // Address pattern - improved to capture more address formats
+    const addressPatterns = [
+      /Address[.:|\s]*\s*([^]*?)(?=(?:Date|Gender|Sex|DOB|Voter|Electoral|$))/i,
+      /(?:Resident|House)[.:|\s]*\s*([^]*?)(?=(?:Date|Gender|Sex|DOB|Voter|Electoral|$))/i
+    ];
+    
+    for (const pattern of addressPatterns) {
+      const addressMatch = text.match(pattern);
+      if (addressMatch && addressMatch[1] && addressMatch[1].trim().length > 0) {
+        extractedData.address = addressMatch[1].trim()
+          .replace(/\n+/g, ', ')  // Replace newlines with commas
+          .replace(/\s+/g, ' ')   // Normalize spaces
+          .replace(/,\s*,/g, ',') // Remove duplicate commas
+          .trim();
+        break;
       }
+    }
+    
+    // Determine if extraction was successful - at least some fields should be extracted
+    const hasExtractedData = Object.values(extractedData).some(value => value !== '');
+    
+    if (!hasExtractedData) {
+      throw new Error("No voter information could be extracted from the image");
+    }
+    
+    console.log("Extracted data:", extractedData);
+    return extractedData;
+  };
+
+  // Improved OCR function with better image preprocessing
+  const performOCR = async (imageFile) => {
+    try {
+      setOcrProgress(0);
       
-      // Date of Birth pattern - various formats
-      const dobPatterns = [
-        /(?:DOB|Date\s+of\s+Birth)[.:|\s]*\s*(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})/i,
-        /(?:Born\s+on|Birth\s+Date)[.:|\s]*\s*(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})/i,
-        /(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})/  // Just look for date format
-      ];
+      // Create image URL for processing
+      const imageUrl = URL.createObjectURL(imageFile);
       
-      for (const pattern of dobPatterns) {
-        const dobMatch = text.match(pattern);
-        if (dobMatch && dobMatch[1]) {
-          // Convert to YYYY-MM-DD format for the input field
-          const dobParts = dobMatch[1].split(/[-/.]/);
-          if (dobParts.length === 3) {
-            // Assuming DD-MM-YYYY format in voter card
-            let year = dobParts[2];
-            const month = dobParts[1].padStart(2, '0');
-            const day = dobParts[0].padStart(2, '0');
-            
-            // Handle 2-digit years
-            if (year.length === 2) {
-              const currentYear = new Date().getFullYear().toString();
-              const century = currentYear.substring(0, 2);
-              year = parseInt(year) > 50 ? `19${year}` : `${century}${year}`;
+      // Perform OCR with Tesseract with improved settings
+      const result = await Tesseract.recognize(
+        imageUrl,
+        'eng', // Language - English
+        {
+          logger: message => {
+            // Update progress based on Tesseract status
+            if (message.status === 'recognizing text') {
+              setOcrProgress(message.progress * 100);
             }
-            
-            extractedData.dateOfBirth = `${year}-${month}-${day}`;
-            break;
-          }
+          },
+          // Improve OCR accuracy with these settings
+          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789/-.,:;() ',
+          tessjs_create_pdf: '0',
+          tessjs_create_hocr: '0',
+          tessjs_create_tsv: '0',
+          tessjs_create_box: '0'
         }
-      }
+      );
       
-      // Gender pattern
-      const genderPatterns = [
-        /(?:Gender|Sex)[.:|\s]*\s*(Male|Female|Other)/i,
-        /(?:Gender|Sex)[.:|\s]*\s*([MF])/i  // Look for M or F abbreviations
-      ];
+      // Cleanup
+      URL.revokeObjectURL(imageUrl);
       
-      for (const pattern of genderPatterns) {
-        const genderMatch = text.match(pattern);
-        if (genderMatch && genderMatch[1]) {
-          // Handle M/F abbreviations
-          let gender = genderMatch[1];
-          if (gender.toLowerCase() === 'm') {
-            gender = 'Male';
-          } else if (gender.toLowerCase() === 'f') {
-            gender = 'Female';
-          } else {
-            // Capitalize first letter only
-            gender = gender.charAt(0).toUpperCase() + gender.slice(1).toLowerCase();
-          }
-          extractedData.gender = gender;
-          break;
-        }
-      }
+      // Extract voter information from OCR text
+      const extractedData = extractVoterInfo(result.data.text);
       
-      // Address pattern - improved to capture more address formats
-      const addressPatterns = [
-        /Address[.:|\s]*\s*([^]*?)(?=(?:Date|Gender|Sex|DOB|Voter|Electoral|$))/i,
-        /(?:Resident|House)[.:|\s]*\s*([^]*?)(?=(?:Date|Gender|Sex|DOB|Voter|Electoral|$))/i
-      ];
-      
-      for (const pattern of addressPatterns) {
-        const addressMatch = text.match(pattern);
-        if (addressMatch && addressMatch[1] && addressMatch[1].trim().length > 0) {
-          extractedData.address = addressMatch[1].trim()
-            .replace(/\n+/g, ', ')  // Replace newlines with commas
-            .replace(/\s+/g, ' ')   // Normalize spaces
-            .replace(/,\s*,/g, ',') // Remove duplicate commas
-            .trim();
-          break;
-        }
-      }
-      
-      // Determine if extraction was successful - at least some fields should be extracted
-      const hasExtractedData = Object.values(extractedData).some(value => value !== '');
-      
-      if (!hasExtractedData) {
-        throw new Error("No voter information could be extracted from the image");
-      }
-      
-      console.log("Extracted data:", extractedData);
       return extractedData;
-    };
-  
-    // Improved OCR function with better image preprocessing
-    const performOCR = async (imageFile) => {
-      try {
-        setOcrProgress(0);
+    } catch (error) {
+      console.error("OCR Error:", error);
+      throw error;
+    }
+  };
+
+  // Handle file upload for voter card
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Reset extraction error state
+      setExtractionError(false);
+      setOcrText('');
+      
+      // Read file and show preview
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        setFormData(prevData => ({
+          ...prevData,
+          voterCardFile: file,
+          voterCardPreview: e.target.result
+        }));
         
-        // Create image URL for processing
-        const imageUrl = URL.createObjectURL(imageFile);
+        // Start OCR processing
+        setIsProcessing(true);
         
-        // Perform OCR with Tesseract with improved settings
-        const result = await Tesseract.recognize(
-          imageUrl,
-          'eng', // Language - English
-          {
-            logger: message => {
-              // Update progress based on Tesseract status
-              if (message.status === 'recognizing text') {
-                setOcrProgress(message.progress * 100);
-              }
-            },
-            // Improve OCR accuracy with these settings
-            tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789/-.,:;() ',
-            tessjs_create_pdf: '0',
-            tessjs_create_hocr: '0',
-            tessjs_create_tsv: '0',
-            tessjs_create_box: '0'
-          }
-        );
-        
-        // Cleanup
-        URL.revokeObjectURL(imageUrl);
-        
-        // Extract voter information from OCR text
-        const extractedData = extractVoterInfo(result.data.text);
-        
-        return extractedData;
-      } catch (error) {
-        console.error("OCR Error:", error);
-        throw error;
-      }
-    };
-  
-    // Handle file upload for voter card
-    const handleFileChange = async (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        // Reset extraction error state
-        setExtractionError(false);
-        setOcrText('');
-        
-        // Read file and show preview
-        const reader = new FileReader();
-        reader.onload = async (e) => {
+        try {
+          // Process the voter card with OCR
+          const extractedData = await performOCR(file);
+          
+          // Update form with extracted data
           setFormData(prevData => ({
             ...prevData,
-            voterCardFile: file,
-            voterCardPreview: e.target.result
+            ...extractedData
           }));
           
-          // Start OCR processing
-          setIsProcessing(true);
-          
-          try {
-            // Process the voter card with OCR
-            const extractedData = await performOCR(file);
-            
-            // Update form with extracted data
-            setFormData(prevData => ({
-              ...prevData,
-              ...extractedData
-            }));
-            
-            setIsOCRComplete(true);
-          } catch (error) {
-            console.error("OCR Processing Error:", error);
-            setExtractionError(true);
-          } finally {
-            setIsProcessing(false);
-          }
-        };
-        reader.readAsDataURL(file);
-      }
-    };
+          setIsOCRComplete(true);
+        } catch (error) {
+          console.error("OCR Processing Error:", error);
+          setExtractionError(true);
+        } finally {
+          setIsProcessing(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Handle input changes
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData({
+      ...formData,
+      [name]: value
+    });
+  };
   
-    // Handle input changes
-    const handleInputChange = (e) => {
-      const { name, value } = e.target;
-      setFormData({
-        ...formData,
-        [name]: value
-      });
-    };
-    
-    // Update the nextStep function to ensure camera starts when moving to Step 4
-    const nextStep = () => {
-        if (validateStep()) {
-          const nextStepValue = step + 1;
-          setStep(nextStepValue);
-          
-          // Start the camera when moving to Step 4
-          if (nextStepValue === 4) {
-            // Wait for component to update before starting camera
-            setTimeout(() => {
-              startCamera();
-            }, 100);
-          }
-        }
-      };
-    
-    // Navigate to previous step
-    const prevStep = () => {
-      setStep(prevStep => prevStep - 1);
-      if (step === 4) {
-        stopCamera();
+  // Update the nextStep function to ensure camera starts when moving to Step 4
+  const nextStep = () => {
+    if (validateStep()) {
+      const nextStepValue = step + 1;
+      setStep(nextStepValue);
+      
+      // Start the camera when moving to Step 4
+      if (nextStepValue === 4) {
+        // Wait for component to update before starting camera
+        setTimeout(() => {
+          startCamera();
+        }, 100);
       }
-    };
+    }
+  };
+  
+  // Navigate to previous step
+  const prevStep = () => {
+    setStep(prevStep => prevStep - 1);
+    if (step === 4) {
+      stopCamera();
+    }
+  };
+  
+  // Validate current step
+  const validateStep = () => {
+    let stepErrors = {};
+    let isValid = true;
     
-    // Validate current step
-    const validateStep = () => {
-        let stepErrors = {};
-        let isValid = true;
-        
-        console.log("Validating step:", step);
-        
-        if (step === 3) {
-          console.log("Step 3 form data:", formData.address, formData.state, formData.district);
-          // Your validation logic...
-        }
-        
-        console.log("Validation result:", isValid, stepErrors);
-        setErrors(stepErrors);
-        return isValid;
-      };
+    console.log("Validating step:", step);
     
-    // Camera handling for face capture
+    if (step === 1) {
+      if (!formData.voterCardFile) {
+        stepErrors.voterCard = "Please upload your voter card";
+        isValid = false;
+      }
+    } else if (step === 2) {
+      if (!formData.name) {
+        stepErrors.name = "Name is required";
+        isValid = false;
+      }
+      if (!formData.voterNumber) {
+        stepErrors.voterNumber = "Voter ID number is required";
+        isValid = false;
+      }
+      if (!formData.gender) {
+        stepErrors.gender = "Gender is required";
+        isValid = false;
+      }
+      if (!formData.dateOfBirth) {
+        stepErrors.dateOfBirth = "Date of birth is required";
+        isValid = false;
+      }
+    } else if (step === 3) {
+      if (!formData.state) {
+        stepErrors.state = "State is required";
+        isValid = false;
+      }
+      if (!formData.district) {
+        stepErrors.district = "District is required";
+        isValid = false;
+      }
+      if (!formData.subDistrict) {
+        stepErrors.subDistrict = "Sub-District is required";
+        isValid = false;
+      }
+      if (!formData.village) {
+        stepErrors.village = "Village/Area is required";
+        isValid = false;
+      }
+      if (!formData.streetAddress) {
+        stepErrors.streetAddress = "Street address is required";
+        isValid = false;
+      }
+      if (!formData.zipCode) {
+        stepErrors.zipCode = "Zip/Postal code is required";
+        isValid = false;
+      }
+    }
+    
+    console.log("Validation result:", isValid, stepErrors);
+    setErrors(stepErrors);
+    return isValid;
+  };
+
   // Improve the startCamera function for better reliability
   const startCamera = async () => {
     try {
@@ -702,9 +799,9 @@ const Registration = () => {
       // Don't reset the step here, just show an error
     }
   };
-    
-   // Improved stopCamera function for better cleanup
-const stopCamera = () => {
+  
+  // Improved stopCamera function for better cleanup
+  const stopCamera = () => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
@@ -713,10 +810,11 @@ const stopCamera = () => {
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+    setIsCameraOpen(false);
   };    
-    
-   // Improved captureImage function for better reliability
-const captureImage = () => {
+  
+  // Improved captureImage function for better reliability
+  const captureImage = () => {
     if (!videoRef.current || !canvasRef.current) {
       setErrors(prev => ({ ...prev, camera: "Camera reference not available" }));
       return;
@@ -756,414 +854,441 @@ const captureImage = () => {
       setErrors(prev => ({ ...prev, camera: `Failed to capture image: ${error.message}` }));
     }
   };
-  
-    
-    // Handle form submission
-    const handleSubmit = (e) => {
-      e.preventDefault();
-      if (validateStep()) {
-        console.log("Form submitted:", formData);
-        // Here you would typically send the data to your backend API
-        alert("Registration successful! Your voter registration has been submitted.");
-        // Reset form
-        setFormData({
-          voterCardFile: null,
-          voterCardPreview: null,
-          name: '',
-          fatherName: '',
-          voterNumber: '',
-          address: '',
-          dateOfBirth: '',
-          gender: '',
-          faceImage: null
-        });
-        setStep(1);
-        setIsOCRComplete(false);
-        setExtractionError(false);
-        setOcrText('');
-      }
-    };
-    
-    // Manual retrying of OCR
-    const retryOCR = async () => {
-      if (formData.voterCardFile) {
-        setExtractionError(false);
-        setIsProcessing(true);
+
+  // Handle form submission with only database (no storage)
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (validateStep()) {
+      try {
+        // Set submitting state to show loading indicator
+        setIsSubmitting(true);
         
-        try {
-          const extractedData = await performOCR(formData.voterCardFile);
-          setFormData(prevData => ({
-            ...prevData,
-            ...extractedData
-          }));
-          setIsOCRComplete(true);
-        } catch (error) {
-          console.error("OCR Retry Error:", error);
-          setExtractionError(true);
-        } finally {
-          setIsProcessing(false);
+        // Validate that required fields are present
+        if (!formData.voterNumber || !formData.state || !formData.district || 
+            !formData.subDistrict || !formData.village) {
+          throw new Error("Missing required fields");
         }
+        
+        // Create the path according to the specified structure
+        const voterPath = `voters/${formData.state}/${formData.district}/${formData.subDistrict}/${formData.village}/${formData.voterNumber}`;
+        
+        // Create the data object to save - without image URL
+        const voterData = {
+          voterName: formData.name,
+          fatherName: formData.fatherName,
+          gender: formData.gender,
+          dateOfBirth: formData.dateOfBirth,
+          address: {
+            street: formData.streetAddress,
+            zipCode: formData.zipCode,
+          },
+          faceImage: formData.faceImage,
+          timestamp: new Date().toISOString()
+        };
+        
+        // Save to Firebase Realtime Database
+        await set(ref(database, voterPath), voterData);
+        
+        // Show success message and loading state
+        setIsSubmitting(false);
+        setShowModal(true);
+        
+      } catch (error) {
+        console.error("Submission error:", error);
+        alert(`Error submitting registration: ${error.message}`);
+        setIsSubmitting(false);
       }
+    }
+  };
+  
+  // Manual retrying of OCR
+  const retryOCR = async () => {
+    if (formData.voterCardFile) {
+      setExtractionError(false);
+      setIsProcessing(true);
+      
+      try {
+        const extractedData = await performOCR(formData.voterCardFile);
+        setFormData(prevData => ({
+          ...prevData,
+          ...extractedData
+        }));
+        setIsOCRComplete(true);
+      } catch (error) {
+        console.error("OCR Retry Error:", error);
+        setExtractionError(true);
+      } finally {
+        setIsProcessing(false);
+      }
+    }
+  };
+  
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      stopCamera();
     };
-    
-    // Cleanup
-    useEffect(() => {
-      return () => {
-        stopCamera();
-      };
-    }, []);
-    
+  }, []);
+  
+  // State management for location selections
+  const [subDistricts, setSubDistricts] = useState([]);
+  const [villages, setVillages] = useState([]);
 
-    // State management for location selections
-    const [subDistricts, setSubDistricts] = useState([]);
-    const [villages, setVillages] = useState([]);
-  
-    // Handle district selection and load sub-districts
-    const handleDistrictChange = (e) => {
-      const district = e.target.value;
-      const updatedFormData = {
-        ...formData,
-        district: district,
-        subDistrict: "",
-        village: ""
-      };
-      setFormData(updatedFormData);
-      
-      // Find the selected district data
-      const districtData = maharashtraData.districts.find(d => d.district === district);
-      setSubDistricts(districtData ? districtData.subDistricts : []);
-      setVillages([]);
+  // Handle district selection and load sub-districts
+  const handleDistrictChange = (e) => {
+    const district = e.target.value;
+    const updatedFormData = {
+      ...formData,
+      district: district,
+      subDistrict: "",
+      village: ""
     };
-  
-    // Handle sub-district selection and load villages
-    const handleSubDistrictChange = (e) => {
-      const subDistrict = e.target.value;
-      const updatedFormData = {
-        ...formData,
-        subDistrict: subDistrict,
-        village: ""
-      };
-      setFormData(updatedFormData);
-      
-      // Find the selected sub-district data
-      const subDistrictData = subDistricts.find(sd => sd.subDistrict === subDistrict);
-      setVillages(subDistrictData ? subDistrictData.villages : []);
-    };
-  
-    // Debug mode toggle
-    const [debugMode, setDebugMode] = useState(false);
+    setFormData(updatedFormData);
     
-    // Render step content
-    const renderStep = () => {
-      switch (step) {
-        case 1:
-          return (
-            <StepContainer className="upload-step">
-              <h2>Step 1: Upload or Scan Voter Card</h2>
-              <UploadArea onClick={() => fileInputRef.current.click()}>
-                {formData.voterCardPreview ? (
-                  <PreviewImage src={formData.voterCardPreview} alt="Voter Card Preview" />
-                ) : (
-                  <UploadPlaceholder>
-                    <UploadIcon>📄</UploadIcon>
-                    <p>Click to upload or drag your voter card here</p>
-                    <p style={{ fontSize: '14px', color: '#666' }}>For best results, ensure the image is clear and well-lit</p>
-                  </UploadPlaceholder>
-                )}
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  onChange={handleFileChange} 
-                  accept="image/*" 
-                  style={{ display: 'none' }} 
-                />
-              </UploadArea>
-              {errors.voterCard && <ErrorMessage>{errors.voterCard}</ErrorMessage>}
-              
-              <OrDivider>
-                <span>OR</span>
-              </OrDivider>
-              
-              <ScanButton onClick={() => alert("Open camera for scanning")}>
-                Scan with Camera
-              </ScanButton>
-            
-              
-              <NavigationButtons>
-                <div></div> {/* Empty div for spacing */}
-                <NextButton onClick={nextStep} disabled={!formData.voterCardFile || isProcessing}>
-                  {isProcessing ? 'Processing...' : 'Next'}
-                </NextButton>
-              </NavigationButtons>
-            </StepContainer>
-          );
-          
-        case 2:
-          return (
-            <StepContainer className="details-step">
-              <h2>Step 2: Personal Information</h2>
-              {isProcessing ? (
-                <ProcessingIndicator>
-                  <Spinner />
-                  <p>Processing voter card data... {ocrProgress.toFixed(0)}%</p>
-                </ProcessingIndicator>
+    // Find the selected district data
+    const districtData = maharashtraData.districts.find(d => d.district === district);
+    setSubDistricts(districtData ? districtData.subDistricts : []);
+    setVillages([]);
+  };
+
+  // Handle sub-district selection and load villages
+  const handleSubDistrictChange = (e) => {
+    const subDistrict = e.target.value;
+    const updatedFormData = {
+      ...formData,
+      subDistrict: subDistrict,
+      village: ""
+    };
+    setFormData(updatedFormData);
+    
+    // Find the selected sub-district data
+    const subDistrictData = subDistricts.find(sd => sd.subDistrict === subDistrict);
+    setVillages(subDistrictData ? subDistrictData.villages : []);
+  };
+
+  // Debug mode toggle
+  const [debugMode] = useState(false);
+  
+  // Render step content
+  const renderStep = () => {
+    switch (step) {
+      case 1:
+        return (
+          <StepContainer className="upload-step">
+            <h2>Step 1: Upload or Scan Voter Card</h2>
+            <div>
+            {!isCameraOpen && !capturedImage && (
+              <>
+            <UploadArea onClick={() => fileInputRef.current.click()}>
+              {formData.voterCardPreview ? (
+                <PreviewImage src={formData.voterCardPreview} alt="Voter Card Preview" />
               ) : (
-                <FormFields>
-                  {extractionError && (
-                    <ErrorMessage style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#ffebee' }}>
-                      <p>We couldn't automatically extract information from your voter card. Please ensure the image is clear and well-lit, or enter the details manually.</p>
-                      <button 
-                        onClick={retryOCR}
-                        style={{ 
-                          padding: '8px 16px', 
-                          backgroundColor: '#f44336', 
-                          color: 'white', 
-                          border: 'none', 
-                          borderRadius: '4px', 
-                          cursor: 'pointer',
-                          marginTop: '8px'
-                        }}
-                      >
-                        Retry Extraction
-                      </button>
-                    </ErrorMessage>
-                  )}
-                  
-                  {/* Display a card with the extracted information */}
-                  {isOCRComplete && !extractionError && (
-                    <OcrMessage>
-                     <p>We've extracted information from your voter card. Please verify the details above and make corrections if needed.</p>
-                    </OcrMessage>     
-                  )}
-                  <FormGroup>
-                    <Label htmlFor="voterNumber">Voter ID Number</Label>
-                    <Input 
-                      type="text" 
-                      id="voterNumber" 
-                      name="voterNumber" 
-                      value={formData.voterNumber} 
-                      onChange={handleInputChange} 
-                      placeholder="Enter your voter ID number"
-                    />
-                    {errors.voterNumber && <ErrorMessage>{errors.voterNumber}</ErrorMessage>}
-                  </FormGroup>
-
-                  <FormGroup>
-                    <Label htmlFor="name">Full Name (as on Voter Card)</Label>
-                    <Input 
-                      type="text" 
-                      id="name" 
-                      name="name" 
-                      value={formData.name} 
-                      onChange={handleInputChange} 
-                      placeholder="Enter your full name"
-                    />
-                    {errors.name && <ErrorMessage>{errors.name}</ErrorMessage>}
-                  </FormGroup>
-                  <FormGroup>
-                    <Label htmlFor="fatherName">Father's Name</Label>
-                    <Input 
-                      type="text" 
-                      id="fatherName" 
-                      name="fatherName" 
-                      value={formData.fatherName} 
-                      onChange={handleInputChange} 
-                      placeholder="Enter your father's name"
-                    />
-                    {errors.fatherName && <ErrorMessage>{errors.fatherName}</ErrorMessage>}
-                  </FormGroup>
-                  
-                  
-                  
-                  {/* Gender and DOB fields moved to Step 2 */}
-                  <FormGroup>
-                    <Label htmlFor="gender">Gender</Label>
-                    <Select 
-                      id="gender" 
-                      name="gender" 
-                      value={formData.gender} 
-                      onChange={handleInputChange} 
-                    >
-                      <option value="">Select gender</option>
-                      <option value="Male">Male</option>
-                      <option value="Female">Female</option>
-                      <option value="Other">Other</option>
-                    </Select>
-                    {errors.gender && <ErrorMessage>{errors.gender}</ErrorMessage>}
-                  </FormGroup>
-                  
-                  <FormGroup>
-                    <Label htmlFor="dateOfBirth">Date of Birth</Label>
-                    <Input 
-                      type="date" 
-                      id="dateOfBirth" 
-                      name="dateOfBirth" 
-                      value={formData.dateOfBirth} 
-                      onChange={handleInputChange} 
-                    />
-                    {errors.dateOfBirth && <ErrorMessage>{errors.dateOfBirth}</ErrorMessage>}
-                  </FormGroup>
-                  
-                  {/* Debug information - only shown in debug mode */}
-                  {debugMode && ocrText && (
-                    <div style={{ 
-                      marginTop: '20px', 
-                      padding: '10px', 
-                      backgroundColor: '#f8f9fa', 
-                      border: '1px solid #ddd',
-                      borderRadius: '4px',
-                      fontFamily: 'monospace',
-                      fontSize: '12px',
-                      whiteSpace: 'pre-wrap'
-                    }}>
-                      <h4 style={{ marginTop: 0 }}>Raw OCR Text:</h4>
-                      <pre>{ocrText}</pre>
-                    </div>
-                  )}
-                </FormFields>
+                <UploadPlaceholder>
+                  <UploadIcon>📄</UploadIcon>
+                  <p>Click to upload or drag your voter card here</p>
+                  <p style={{ fontSize: '14px', color: '#666' }}>For best results, ensure the image is clear and well-lit</p>
+                </UploadPlaceholder>
               )}
-              
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleFileChange} 
+                accept="image/*" 
+                style={{ display: 'none' }} 
+              />
+            </UploadArea>
+            {errors.voterCard && <ErrorMessage>{errors.voterCard}</ErrorMessage>}
+            
+            <OrDivider>
+              <span>OR</span>
+            </OrDivider>
+
+            <ScanButton onClick={openCamera}>Scan with Camera</ScanButton>
+            </>
+            )}
+
+      {isCameraOpen && (
+        <div>
+          <VideoContainer>
+            <CameraFeed ref={videoRef} autoPlay />
+          </VideoContainer>
+          <CaptureButton onClick={capturePhoto}>Capture Photo</CaptureButton>
+        </div>
+      )}
+
+      {capturedImage && <CapturedImage src={capturedImage} alt="Captured" />}
+      <canvas ref={canvasRef} style={{ display: "none" }} />
+    </div>
+          
+            
+            <NavigationButtons>
+              <div></div> {/* Empty div for spacing */}
+              <NextButton onClick={nextStep} disabled={(!formData.voterCardFile && !capturedImage) || isProcessing}>
+                {isProcessing ? 'Processing...' : 'Next'}
+              </NextButton>
+            </NavigationButtons>
+          </StepContainer>
+        );
+        
+      case 2:
+        return (
+          <StepContainer className="details-step">
+            <h2>Step 2: Personal Information</h2>
+            {isProcessing ? (
+              <ProcessingIndicator>
+                <Spinner />
+                <p>Processing voter card data... {ocrProgress.toFixed(0)}%</p>
+              </ProcessingIndicator>
+            ) : (
+              <FormFields>
+                {extractionError && (
+                  <ErrorMessage style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#ffebee' }}>
+                    <p>We couldn't automatically extract information from your voter card. Please ensure the image is clear and well-lit, or enter the details manually.</p>
+                    <button 
+                      onClick={retryOCR}
+                      style={{ 
+                        padding: '8px 16px', 
+                        backgroundColor: '#f44336', 
+                        color: 'white', 
+                        border: 'none', 
+                        borderRadius: '4px', 
+                        cursor: 'pointer',
+                        marginTop: '8px'
+                      }}
+                    >
+                      Retry Extraction
+                    </button>
+                  </ErrorMessage>
+                )}
+                
+                {/* Display a card with the extracted information */}
+                {isOCRComplete && !extractionError && (
+                  <OcrMessage>
+                   <p>We've extracted information from your voter card. Please verify the details above and make corrections if needed.</p>
+                  </OcrMessage>     
+                )}
+                <FormGroup>
+                  <Label htmlFor="voterNumber">Voter ID Number</Label>
+                  <Input 
+                    type="text" 
+                    id="voterNumber" 
+                    name="voterNumber" 
+                    value={formData.voterNumber} 
+                    onChange={handleInputChange} 
+                    placeholder="Enter your voter ID number"
+                  />
+                  {errors.voterNumber && <ErrorMessage>{errors.voterNumber}</ErrorMessage>}
+                </FormGroup>
+
+                <FormGroup>
+                  <Label htmlFor="name">Full Name (as on Voter Card)</Label>
+                  <Input 
+                    type="text" 
+                    id="name" 
+                    name="name" 
+                    value={formData.name} 
+                    onChange={handleInputChange} 
+                    placeholder="Enter your full name"
+                  />
+                  {errors.name && <ErrorMessage>{errors.name}</ErrorMessage>}
+                </FormGroup>
+                <FormGroup>
+                  <Label htmlFor="fatherName">Father's Name</Label>
+                  <Input 
+                    type="text" 
+                    id="fatherName" 
+                    name="fatherName" 
+                    value={formData.fatherName} 
+                    onChange={handleInputChange} 
+                    placeholder="Enter your father's name"
+                  />
+                  {errors.fatherName && <ErrorMessage>{errors.fatherName}</ErrorMessage>}
+                </FormGroup>
+                
+                {/* Gender and DOB fields moved to Step 2 */}
+                <FormGroup>
+                  <Label htmlFor="gender">Gender</Label>
+                  <Select 
+                    id="gender" 
+                    name="gender" 
+                    value={formData.gender} 
+                    onChange={handleInputChange} 
+                  >
+                    <option value="">Select gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </Select>
+                  {errors.gender && <ErrorMessage>{errors.gender}</ErrorMessage>}
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label htmlFor="dateOfBirth">Date of Birth</Label>
+                  <Input 
+                    type="date" 
+                    id="dateOfBirth" 
+                    name="dateOfBirth" 
+                    value={formData.dateOfBirth} 
+                    onChange={handleInputChange} 
+                  />
+                  {errors.dateOfBirth && <ErrorMessage>{errors.dateOfBirth}</ErrorMessage>}
+                </FormGroup>
+                
+                {/* Debug information - only shown in debug mode */}
+                {debugMode && ocrText && (
+                  <div style={{ 
+                    marginTop: '20px', 
+                    padding: '10px', 
+                    backgroundColor: '#f8f9fa', 
+                    border: '1px solid #ddd',
+                    borderRadius: '4px',
+                    fontFamily: 'monospace',
+                    fontSize: '12px',
+                    whiteSpace: 'pre-wrap'
+                  }}>
+                    <h4 style={{ marginTop: 0 }}>Raw OCR Text:</h4>
+                    <pre>{ocrText}</pre>
+                  </div>
+                )}
+              </FormFields>
+            )}
+            
+            <NavigationButtons>
+              <BackButton onClick={prevStep}>
+                Back
+              </BackButton>
+              <NextButton onClick={nextStep} disabled={isProcessing}>
+                Next
+              </NextButton>
+            </NavigationButtons>
+          </StepContainer>
+        );
+          
+        case 3:
+          return (
+            <StepContainer className="address-step">
+              <h2>Step 3: Address Information</h2>
+              <FormFields>
+                <FormGroup>
+                  <Label htmlFor="state">State</Label>
+                  <Select
+                    id="state"
+                    name="state"
+                    value={formData.state || ''}
+                    onChange={(e) => {
+                      const updatedFormData = {
+                        ...formData,
+                        state: e.target.value,
+                        district: "",
+                        subDistrict: "",
+                        village: ""
+                      };
+                      setFormData(updatedFormData);
+                      // Reset dependent dropdowns
+                      setSubDistricts([]);
+                      setVillages([]);
+                    }}
+                    required
+                  >
+                    <option value="">Select State</option>
+                    <option value="MH">Maharashtra</option>
+                    {/* Add other states as needed */}
+                  </Select>
+                  {errors.state && <ErrorMessage>{errors.state}</ErrorMessage>}
+                </FormGroup>
+        
+                <FormGroup>
+                  <Label htmlFor="district">District</Label>
+                  <Select
+                    id="district"
+                    name="district"
+                    value={formData.district || ''}
+                    onChange={handleDistrictChange}
+                    disabled={!formData.state}
+                    required
+                  >
+                    <option value="">Select District</option>
+                    {formData.state === "MH" && maharashtraData.districts.map(({ district }) => (
+                      <option key={district} value={district}>{district}</option>
+                    ))}
+                  </Select>
+                  {errors.district && <ErrorMessage>{errors.district}</ErrorMessage>}
+                </FormGroup>
+        
+                <FormGroup>
+                  <Label htmlFor="subDistrict">Sub-District/Taluka</Label>
+                  <Select
+                    id="subDistrict"
+                    name="subDistrict"
+                    value={formData.subDistrict || ''}
+                    onChange={handleSubDistrictChange}
+                    disabled={!formData.district}
+                    required
+                  >
+                    <option value="">Select Sub-District</option>
+                    {subDistricts.map(({ subDistrict }) => (
+                      <option key={subDistrict} value={subDistrict}>{subDistrict}</option>
+                    ))}
+                  </Select>
+                  {errors.subDistrict && <ErrorMessage>{errors.subDistrict}</ErrorMessage>}
+                </FormGroup>
+        
+                <FormGroup>
+                  <Label htmlFor="village">Village/Area</Label>
+                  <Select
+                    id="village"
+                    name="village"
+                    value={formData.village || ''}
+                    onChange={handleInputChange}
+                    disabled={!formData.subDistrict}
+                    required
+                  >
+                    <option value="">Select Village/Area</option>
+                    {villages.map((village) => (
+                      <option key={village} value={village}>{village}</option>
+                    ))}
+                  </Select>
+                  {errors.village && <ErrorMessage>{errors.village}</ErrorMessage>}
+                </FormGroup>
+        
+                <FormGroup>
+                  <Label htmlFor="streetAddress">Street Address</Label>
+                  <Input
+                    id="streetAddress"
+                    name="streetAddress"
+                    value={formData.streetAddress || ''}
+                    onChange={handleInputChange}
+                    placeholder="123 Main Street"
+                    required
+                  />
+                  {errors.streetAddress && <ErrorMessage>{errors.streetAddress}</ErrorMessage>}
+                </FormGroup>
+        
+                <FormGroup>
+                  <Label htmlFor="zipCode">Zip/Postal Code</Label>
+                  <Input
+                    id="zipCode"
+                    name="zipCode"
+                    value={formData.zipCode || ''}
+                    onChange={handleInputChange}
+                    placeholder="12345"
+                    required
+                  />
+                  {errors.zipCode && <ErrorMessage>{errors.zipCode}</ErrorMessage>}
+                </FormGroup>
+              </FormFields>
+        
               <NavigationButtons>
                 <BackButton onClick={prevStep}>
                   Back
                 </BackButton>
-                <NextButton onClick={nextStep} disabled={isProcessing}>
+                <NextButton onClick={nextStep}>
                   Next
                 </NextButton>
               </NavigationButtons>
             </StepContainer>
           );
-          
-          case 3:
-            
-            return (
-              <StepContainer className="additional-details-step">
-                <h2>Step 3: Address Information</h2>
-                <FormFields>
-                    <FormGroup>
-                    <Label htmlFor="streetAddress">Street Address</Label>
-                    <Input
-                      id="streetAddress"
-                      name="streetAddress"
-                      value={formData.streetAddress || ''}
-                      onChange={handleInputChange}
-                      placeholder="123 Main Street"
-                      required
-                    />
-                    {errors.streetAddress && <ErrorMessage>{errors.streetAddress}</ErrorMessage>}
-                  </FormGroup>
-                  <FormGroup>
-                    <Label htmlFor="state">State</Label>
-                    <Select
-                      id="state"
-                      name="state"
-                      value={formData.state || ''}
-                      onChange={(e) => {
-                        const updatedFormData = {
-                          ...formData,
-                          state: e.target.value,
-                          district: "",
-                          subDistrict: "",
-                          village: ""
-                        };
-                        setFormData(updatedFormData);
-                        // Reset dependent dropdowns
-                        setSubDistricts([]);
-                        setVillages([]);
-                      }}
-                      required
-                    >
-                      <option value="">Select State</option>
-                      <option value="MH">Maharashtra</option>
-                      {/* Add other states as needed */}
-                    </Select>
-                    {errors.state && <ErrorMessage>{errors.state}</ErrorMessage>}
-                  </FormGroup>
-          
-                  <FormGroup>
-                    <Label htmlFor="district">District</Label>
-                    <Select
-                      id="district"
-                      name="district"
-                      value={formData.district || ''}
-                      onChange={handleDistrictChange}
-                      disabled={!formData.state}
-                      required
-                    >
-                      <option value="">Select District</option>
-                      {formData.state === "MH" && maharashtraData.districts.map(({ district }) => (
-                        <option key={district} value={district}>{district}</option>
-                      ))}
-                    </Select>
-                    {errors.district && <ErrorMessage>{errors.district}</ErrorMessage>}
-                  </FormGroup>
-          
-                  <FormGroup>
-                    <Label htmlFor="subDistrict">Sub-District/Taluka</Label>
-                    <Select
-                      id="subDistrict"
-                      name="subDistrict"
-                      value={formData.subDistrict || ''}
-                      onChange={handleSubDistrictChange}
-                      disabled={!formData.district}
-                      required
-                    >
-                      <option value="">Select Sub-District</option>
-                      {subDistricts.map(({ subDistrict }) => (
-                        <option key={subDistrict} value={subDistrict}>{subDistrict}</option>
-                      ))}
-                    </Select>
-                    {errors.subDistrict && <ErrorMessage>{errors.subDistrict}</ErrorMessage>}
-                  </FormGroup>
-                  
-                  <FormGroup>
-                    <Label htmlFor="zipCode">Zip/Postal Code</Label>
-                    <Input
-                      id="zipCode"
-                      name="zipCode"
-                      value={formData.zipCode || ''}
-                      onChange={handleInputChange}
-                      placeholder="12345"
-                      required
-                    />
-                    {errors.zipCode && <ErrorMessage>{errors.zipCode}</ErrorMessage>}
-                  </FormGroup>
-
-                  <FormGroup>
-                    <Label htmlFor="village">Village/Area</Label>
-                    <Select
-                      id="village"
-                      name="village"
-                      value={formData.village || ''}
-                      onChange={handleInputChange}
-                      disabled={!formData.subDistrict}
-                      required
-                    >
-                      <option value="">Select Village/Area</option>
-                      {villages.map((village) => (
-                        <option key={village} value={village}>{village}</option>
-                      ))}
-                    </Select>
-                    {errors.village && <ErrorMessage>{errors.village}</ErrorMessage>}
-                  </FormGroup>
-          
-                  
-          
-                  
-                </FormFields>
-          
-                <NavigationButtons>
-                  <BackButton onClick={prevStep}>
-                    Back
-                  </BackButton>
-                  <NextButton onClick={nextStep}>
-                    Next
-                  </NextButton>
-                </NavigationButtons>
-              </StepContainer>
-            );
-
-
+        
         case 4:
           return (
             <StepContainer className="face-verification-step">
@@ -1202,9 +1327,9 @@ const captureImage = () => {
                 </BackButton>
                 <SubmitButton 
                   onClick={handleSubmit} 
-                  disabled={!formData.faceImage}
+                  disabled={!formData.faceImage || isSubmitting}
                 >
-                  Submit
+                  {isSubmitting ? 'Submitting...' : 'Submit'}
                 </SubmitButton>
               </NavigationButtons>
             </StepContainer>
@@ -1239,6 +1364,20 @@ const captureImage = () => {
         <Form>
           {renderStep()}
         </Form>
+        {showModal && (
+          <div style={{
+            position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+            background: "white", padding: "20px", boxShadow: "0px 4px 10px rgba(0,0,0,0.1)",
+            borderRadius: "8px", textAlign: "center", zIndex: 1000
+          }}>
+            <h3>Registration Successful</h3>
+            <p>Your registration has been submitted successfully.</p>
+            <button onClick={() => { setShowModal(false); window.location.href = "/"; }}>
+              OK
+            </button>
+          </div>
+        )}
+
       </Container>
     );
   };

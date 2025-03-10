@@ -1,8 +1,8 @@
 import React from "react";
 import { Routes, Route } from "react-router-dom";
-import Home from "./Components/Home";
-import VoterPage from "./Components/VoterPage";
-import Registration from "./Components/Registration.js";
+import Home from "./Pages/Home";
+import VoterPage from "./Pages/VoterPage";
+import Registration from "./Pages/Registration.js";
 
 const AppRouter = () => {
   return (

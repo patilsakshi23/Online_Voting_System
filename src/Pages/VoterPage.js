@@ -179,16 +179,6 @@ const Canvas = styled.canvas`
   left: 0;
 `;
 
-const LoadingText = styled.div`
-  padding: 1.5rem;
-  text-align: center;
-  color: ${colors.gray};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  font-size: 1.1rem;
-`;
 
 const Spinner = styled.div`
   border: 3px solid ${colors.grayLight};
@@ -225,45 +215,10 @@ const ErrorMessage = styled(MessageBase)`
   border-left: 4px solid ${colors.danger};
 `;
 
-const StatusMessage = styled(MessageBase)`
-  color: ${colors.info};
-  background-color: ${colors.infoLight};
-  border-left: 4px solid ${colors.info};
-`;
-
 const ProcessingMessage = styled(MessageBase)`
   color: ${colors.info};
   background-color: ${colors.infoLight};
   border-left: 4px solid ${colors.info};
-`;
-
-const SuccessMessage = styled(MessageBase)`
-  color: ${colors.success};
-  background-color: ${colors.successLight};
-  border-left: 4px solid ${colors.success};
-  flex-direction: column;
-  padding: 1.5rem;
-`;
-
-const LocationInfo = styled.div`
-  background-color: ${colors.secondary};
-  padding: 1rem;
-  border-radius: 0.5rem;
-  font-size: 0.95rem;
-  color: ${colors.dark};
-  margin-bottom: 1.5rem;
-  border-left: 4px solid ${colors.primary};
-`;
-
-const ButtonRow = styled.div`
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-top: 1rem;
-
-  @media (max-width: 768px) {
-    flex-direction: column;
-  }
 `;
 
 const VoterInfo = styled.div`
@@ -287,52 +242,6 @@ const VoterInfo = styled.div`
   }
 `;
 
-const ProgressSteps = styled.div`
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 2rem;
-  position: relative;
-
-  &:before {
-    content: '';
-    position: absolute;
-    top: 15px;
-    left: 10%;
-    right: 10%;
-    height: 4px;
-    background: ${colors.grayLight};
-    z-index: 0;
-  }
-`;
-
-const Step = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  z-index: 1;
-
-  .step-number {
-    width: 35px;
-    height: 35px;
-    border-radius: 50%;
-    background: ${props => props.active ? colors.primary : colors.grayLight};
-    color: ${props => props.active ? colors.white : colors.gray};
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    margin-bottom: 0.5rem;
-    transition: all 0.3s ease;
-  }
-
-  .step-label {
-    font-size: 0.85rem;
-    color: ${props => props.active ? colors.primary : colors.gray};
-    text-align: center;
-    font-weight: ${props => props.active ? 600 : 400};
-  }
-`;
-
 const FaceAuthScreen = ({
   selectedState,
   selectedDistrict,
@@ -347,7 +256,7 @@ const FaceAuthScreen = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [matchedVoter, setMatchedVoter] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
-  const [statusMessage, setStatusMessage] = useState("");
+  const [setStatusMessage] = useState("");
 
   // Load face-api models
   useEffect(() => {

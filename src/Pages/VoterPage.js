@@ -30,13 +30,17 @@ const CenteredWrapper = styled.div`
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  // background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
   padding: 1rem;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+
+  @media (max-width: 768px) {
+    padding: 0.5rem;
+  }
 `;
 
 const Container = styled.div`
-  width: 800px;
-  max-width: 100%;
+  width: 100%;
+  max-width: 800px;
   padding: 2rem;
   margin: 2rem auto;
   background: ${colors.white};
@@ -47,7 +51,6 @@ const Container = styled.div`
   @media (max-width: 768px) {
     padding: 1.5rem;
     margin: 1rem;
-    width: 100%;
   }
 `;
 
@@ -58,7 +61,7 @@ const Title = styled.h1`
   margin-bottom: 1.5rem;
   color: ${colors.dark};
   position: relative;
-  
+
   &:after {
     content: "";
     position: absolute;
@@ -144,13 +147,6 @@ const Button = styled.button`
   &:active {
     transform: translateY(1px);
   }
-
-  // &:disabled {
-  //   background: ${colors.grayLight};
-  //   cursor: not-allowed;
-  //   opacity: 0.7;
-  //   transform: none;
-  // }
 `;
 
 const CameraContainer = styled.div`
@@ -162,7 +158,8 @@ const CameraContainer = styled.div`
 
 const VideoWrapper = styled.div`
   position: relative;
-  max-width: 100%;
+  width: 100%;
+  max-width: 640px;
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -172,7 +169,8 @@ const VideoWrapper = styled.div`
 
 const Video = styled.video`
   display: block;
-  max-width: 100%;
+  width: 100%;
+  max-width: 640px;
 `;
 
 const Canvas = styled.canvas`
@@ -199,7 +197,7 @@ const Spinner = styled.div`
   width: 24px;
   height: 24px;
   animation: spin 1s linear infinite;
-  
+
   @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
@@ -262,6 +260,10 @@ const ButtonRow = styled.div`
   justify-content: space-between;
   gap: 1rem;
   margin-top: 1rem;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+  }
 `;
 
 const VoterInfo = styled.div`
@@ -272,13 +274,13 @@ const VoterInfo = styled.div`
   background: ${colors.secondary};
   padding: 1rem;
   border-radius: 0.5rem;
-  
+
   h3 {
     font-size: 1.25rem;
     margin-bottom: 0.5rem;
     color: ${colors.dark};
   }
-  
+
   p {
     margin: 0.2rem 0;
     font-size: 1.1rem;
@@ -290,7 +292,7 @@ const ProgressSteps = styled.div`
   justify-content: space-between;
   margin-bottom: 2rem;
   position: relative;
-  
+
   &:before {
     content: '';
     position: absolute;
@@ -308,7 +310,7 @@ const Step = styled.div`
   flex-direction: column;
   align-items: center;
   z-index: 1;
-  
+
   .step-number {
     width: 35px;
     height: 35px;
@@ -322,7 +324,7 @@ const Step = styled.div`
     margin-bottom: 0.5rem;
     transition: all 0.3s ease;
   }
-  
+
   .step-label {
     font-size: 0.85rem;
     color: ${props => props.active ? colors.primary : colors.gray};
@@ -364,9 +366,9 @@ const FaceAuthScreen = ({
         setErrorMessage("Failed to load face recognition models: " + error.message);
       }
     };
-    
+
     loadModels();
-    
+
     // Cleanup function
     return () => {
       if (videoRef.current && videoRef.current.srcObject) {
@@ -407,15 +409,15 @@ const FaceAuthScreen = ({
   const loadVotersFromFirebase = async () => {
     // Build the path based on selected location
     const locationPath = `voters/${selectedState}/${selectedDistrict}/${selectedSubDistrict}/${selectedVillage}`;
-    
+
     try {
       const dbRef = ref(database);
       const snapshot = await get(child(dbRef, locationPath));
-      
+
       if (snapshot.exists()) {
         const votersData = snapshot.val();
         const votersList = [];
-        
+
         // Convert the Firebase object to an array
         for (const voterId in votersData) {
           votersList.push({
@@ -423,7 +425,7 @@ const FaceAuthScreen = ({
             ...votersData[voterId]
           });
         }
-        
+
         setStatusMessage(`Found ${votersList.length} registered voters in this area`);
         return votersList;
       } else {
@@ -439,29 +441,29 @@ const FaceAuthScreen = ({
   // Process face for recognition - convert base64 images from Firebase to face descriptors
   const processVoterFaces = async (voters) => {
     setStatusMessage("Processing voter database...");
-    
+
     const labeledDescriptors = [];
-    
+
     for (const voter of voters) {
       try {
         // Skip if voter has no face image
         if (!voter.faceImage) continue;
-        
+
         // Convert base64 to image
         const img = await base64ToImage(voter.faceImage);
-        
+
         // Detect face and get descriptor
         const detections = await faceapi.detectSingleFace(img)
           .withFaceLandmarks()
           .withFaceDescriptor();
-        
+
         if (detections) {
           // Create labeled face descriptor for this voter
           const labeledDescriptor = new faceapi.LabeledFaceDescriptors(
-            voter.id, 
+            voter.id,
             [detections.descriptor]
           );
-          
+
           labeledDescriptors.push({
             descriptor: labeledDescriptor,
             voterInfo: voter
@@ -471,103 +473,103 @@ const FaceAuthScreen = ({
         console.error(`Error processing voter ${voter.id}:`, error);
       }
     }
-    
+
     setStatusMessage(`Processed ${labeledDescriptors.length} voter faces`);
     return labeledDescriptors;
   };
 
   const startFaceAuthentication = async () => {
     if (!videoRef.current || isProcessing) return;
-    
+
     setIsProcessing(true);
-    
+
     try {
       // 1. Load voter data from Firebase
       const voters = await loadVotersFromFirebase();
-      
+
       if (voters.length === 0) {
         setErrorMessage("No registered voters found for the selected location");
         setIsProcessing(false);
         return;
       }
-      
+
       // 2. Process voter face data (convert base64 to face descriptors)
       const processedVoters = await processVoterFaces(voters);
-      
+
       if (processedVoters.length === 0) {
         setErrorMessage("No valid face data found for voters in this location");
         setIsProcessing(false);
         return;
       }
-      
+
       // 3. Create face matcher from processed voters
       const labeledDescriptors = processedVoters.map(item => item.descriptor);
       const faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.6); // 0.6 is the threshold
-      
+
       // 4. Process face recognition in intervals
       const recognitionInterval = setInterval(async () => {
         if (!videoRef.current || !canvasRef.current) {
           clearInterval(recognitionInterval);
           return;
         }
-        
+
         // Detect faces in video stream
         const detections = await faceapi.detectAllFaces(videoRef.current)
           .withFaceLandmarks()
           .withFaceDescriptors();
-          
+
         // Draw canvas for visualization
-        const displaySize = { 
-          width: videoRef.current.width, 
-          height: videoRef.current.height 
+        const displaySize = {
+          width: videoRef.current.width,
+          height: videoRef.current.height
         };
-        
+
         faceapi.matchDimensions(canvasRef.current, displaySize);
-        
+
         const resizedDetections = faceapi.resizeResults(detections, displaySize);
-        
+
         // Clear previous drawings
         const ctx = canvasRef.current.getContext('2d');
         ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-        
+
         // Check if any face detected
         if (detections.length > 0) {
           // Match each detected face against the database
           for (const detection of resizedDetections) {
             const match = faceMatcher.findBestMatch(detection.descriptor);
-            
+
             // Draw face box and label
             const box = detection.detection.box;
-            const drawBox = new faceapi.draw.DrawBox(box, { 
+            const drawBox = new faceapi.draw.DrawBox(box, {
               label: match.toString(),
               boxColor: match.distance < 0.6 ? colors.success : colors.danger
             });
             drawBox.draw(canvasRef.current);
-            
+
             // If match is found with high confidence
             if (match.distance < 0.6 && match.label !== 'unknown') {
               // Find the matched voter
               const matchedVoterId = match.label;
               const matchedVoterData = processedVoters.find(item => item.descriptor._label === matchedVoterId);
-              
+
               if (matchedVoterData) {
                 setMatchedVoter(matchedVoterData.voterInfo);
                 setStatusMessage("Match found!");
                 clearInterval(recognitionInterval);
-                
+
                 // Stop the camera
                 if (videoRef.current && videoRef.current.srcObject) {
                   const tracks = videoRef.current.srcObject.getTracks();
                   tracks.forEach(track => track.stop());
                 }
-                
+
                 break;
               }
             }
           }
         }
       }, 100); // Run every 100ms
-      
+
       // Cleanup interval after 30 seconds if no match is found
       setTimeout(() => {
         clearInterval(recognitionInterval);
@@ -576,26 +578,26 @@ const FaceAuthScreen = ({
           setIsProcessing(false);
         }
       }, 30000);
-      
+
     } catch (error) {
       setErrorMessage("Face authentication error: " + error.message);
       setIsProcessing(false);
     }
   };
-  
+
   const resetAuthentication = () => {
     // Clear any previous errors or matches
     setErrorMessage("");
     setStatusMessage("");
     setMatchedVoter(null);
     setIsProcessing(false);
-    
+
     // Stop current video stream if it exists
     if (videoRef.current && videoRef.current.srcObject) {
       const tracks = videoRef.current.srcObject.getTracks();
       tracks.forEach(track => track.stop());
     }
-    
+
     // Clear canvas
     if (canvasRef.current) {
       const ctx = canvasRef.current.getContext('2d');
@@ -610,31 +612,31 @@ const FaceAuthScreen = ({
     <Container>
       <Title>Face Authentication</Title>
       <Subtitle>Please position your face at the center of the camera and remain still.</Subtitle>
-      
-      <CameraContainer> 
+
+      <CameraContainer>
         <VideoWrapper>
-          <Video 
-            ref={videoRef} 
-            autoPlay 
+          <Video
+            ref={videoRef}
+            autoPlay
             muted
-            width="640"
-            height="480"
+            width="100%"
+            height="auto"
           />
-          <Canvas 
+          <Canvas
             ref={canvasRef}
-            width="640"
-            height="480"
+            width="100%"
+            height="auto"
           />
         </VideoWrapper>
-        
+
         {errorMessage && <ErrorMessage>{errorMessage}</ErrorMessage>}
-        
+
         {isProcessing && !matchedVoter && !errorMessage && (
           <ProcessingMessage>
             <Spinner /> Please wait while we recognize your identity
           </ProcessingMessage>
         )}
-        
+
         {matchedVoter && (
           <>
             <div>
@@ -647,25 +649,12 @@ const FaceAuthScreen = ({
             <Button onClick={resetAuthentication} disabled={isLoading}>
               Retry
             </Button>
-          <Button onClick={() => onAuthSuccess(matchedVoter)}>
-          Continue to Voting
-        </Button>
-        </>
-        )}
-      </CameraContainer>
-      
-      {/* <ButtonRow>
-        {!isProcessing && !matchedVoter && (
-          <>
-          <Button 
-            onClick={startFaceAuthentication}
-            disabled={isLoading || !!errorMessage}
-          >
-            Retry Authentication
-          </Button>
+            <Button onClick={() => onAuthSuccess(matchedVoter)}>
+              Continue to Voting
+            </Button>
           </>
         )}
-      </ButtonRow> */}
+      </CameraContainer>
     </Container>
   );
 };
@@ -715,7 +704,6 @@ const VoterPage = () => {
 
   const handleAuthSuccess = (voter) => {
     setAuthenticatedVoter(voter);
-
   };
 
   if (authenticatedVoter) {
@@ -792,7 +780,7 @@ const VoterPage = () => {
           </Select>
         </FormGroup>
 
-        <Button 
+        <Button
           onClick={handleContinueToFaceAuth}
           disabled={!selectedVillage}
         >

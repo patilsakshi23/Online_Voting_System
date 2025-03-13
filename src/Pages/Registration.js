@@ -143,6 +143,7 @@ const Select = styled.select`
   }
 `;
 
+
 // const TextArea = styled.textarea`
 //   width: 100%;
 //   padding: 12px;
@@ -333,6 +334,78 @@ const CapturedImage = styled.img`
   height: 300px;
   object-fit: contain;
   border-radius: 8px;
+`;
+
+
+const ModalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+`;
+
+// The modal container itself
+const ModalContainer = styled.div`
+  background-color: white;
+  padding: 24px;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  max-width: 90%;
+  width: 400px;
+  text-align: center;
+  animation: fadeIn 0.3s ease-out;
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+`;
+
+// Modal title styling
+const ModalTitle = styled.h3`
+  color: #333;
+  margin-top: 0;
+  margin-bottom: 16px;
+  font-size: 20px;
+`;
+
+// Modal message text
+const ModalMessage = styled.p`
+  color: #666;
+  margin-bottom: 24px;
+  line-height: 1.5;
+`;
+
+// Confirmation button
+const ModalButton = styled.button`
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 4px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  
+  &:hover {
+    background-color: #45a049;
+  }
+  
+  &:active {
+    background-color: #3d8b40;
+  }
 `;
 const StepContainer = styled.div``;
 
@@ -1383,17 +1456,15 @@ const Registration = () => {
           {renderStep()}
         </Form>
         {showModal && (
-          <div style={{
-            position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
-            background: "white", padding: "20px", boxShadow: "0px 4px 10px rgba(0,0,0,0.1)",
-            borderRadius: "8px", textAlign: "center", zIndex: 1000
-          }}>
-            <h3>Registration Successful</h3>
-            <p>Your registration has been submitted successfully.</p>
-            <button onClick={() => { setShowModal(false); window.location.href = "/"; }}>
+          <ModalOverlay>
+          <ModalContainer>
+            <ModalTitle>Registration Successful</ModalTitle>
+            <ModalMessage>Your registration has been submitted successfully.</ModalMessage>
+            <ModalButton onClick={() => { setShowModal(false); window.location.href = "/"; }}>
               OK
-            </button>
-          </div>
+            </ModalButton>
+          </ModalContainer>
+        </ModalOverlay>
         )}
 
       </Container>

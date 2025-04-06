@@ -8,6 +8,7 @@ import Signup from "./Pages/Signup";
 import VoterDashboard from "./Voter/VoterDashboard";
 import AdminDashboard from "./Admin/AdminDashboard";
 import VoteCandidate  from "./Admin/VoteCandidate.js";
+import ElectionResults from "./Admin/ElectionResults.js";
 
 const AppRouter = () => {
   return (
@@ -20,6 +21,8 @@ const AppRouter = () => {
       <Route path="/voter-dashboard" element={<VoterDashboard />} />
       <Route path="/admin-dashboard" element={<AdminDashboard />} />
       <Route path="/admin/vote-candidate" element={<VoteCandidate />} />
+      <Route path="/election-results" element={<ElectionResults />} />
+
 
     </Routes>
   );

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import styled, { keyframes } from 'styled-components';
 import Tesseract from 'tesseract.js';
-import maharashtraData from "../assets/Maharashtra.json";
+import maharashtraData from "../json/Maharashtra.json";
 import StepProgressBar from '../Components/StepProgressBar .js';
 
 // In your Registration.js file

@@ -1,0 +1,35 @@
+
+{
+    "parties": [
+      {
+        "id": "party1",
+        "name": "Bharatiya Janata Party",
+        "logoUrl": "src/assets/Parties/AAP.avif",
+        "primaryColor": "#0000FF"
+      },
+      {
+        "id": "party2",
+        "name": "Indian National Congress",
+        "logoUrl": "https://example.com/images/republican-logo.png",
+        "primaryColor": "#FF0000"
+      },
+      {
+        "id": "party3",
+        "name": "Aam Aadmi Party",
+        "logoUrl": "https://example.com/images/libertarian-logo.png",
+        "primaryColor": "#FFFF00"
+      },
+      {
+        "id": "party4",
+        "name": "Bahujan Samaj Party",
+        "logoUrl": "https://example.com/images/independent-logo.png",
+        "primaryColor": "#808080"
+      },
+      {
+        "id": "party5",
+        "name": "Communist Party of India(Marxist)",
+        "logoUrl": "https://example.com/images/independent-logo.png",
+        "primaryColor": "#808484"
+      }
+    ]
+  }

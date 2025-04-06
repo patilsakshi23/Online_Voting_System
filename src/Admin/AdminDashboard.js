@@ -241,7 +241,10 @@ const AdminDashboard = () => {
   const handleNavClick = (name) => {
     if (name === 'Voter Verification') {
       navigate('/admin/voter-authentication');
-    } else {
+    } else if (name === 'Results') {
+      navigate('/election-results');
+    }
+     else {
       setActiveSection(name);
     }
   };
@@ -264,8 +267,6 @@ const AdminDashboard = () => {
         return <CandidateRegistration/>;
       case 'Vote':
         return <Vote/>;
-      case 'Results':
-        return <h1>Results</h1>;
       default:
         return <h1>Dashboard</h1>;
     }

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import styled from "styled-components";
-import maharashtraData from "../assets/Maharashtra.json";
+import maharashtraData from "../json/Maharashtra.json";
 import { database } from "../FirebaseConfig.js";
 import { ref as dbRef, set } from "firebase/database";
 
@@ -669,11 +669,12 @@ const CandidateRegistration = () => {
                 required
             >
                 <option value="">Select a party</option>
-                <option value="Democratic">Democratic</option>
-                <option value="Republican">Republican</option>
-                <option value="Libertarian">Libertarian</option>
-                <option value="Green">Green</option>
-                <option value="Independent">Independent</option>
+                <option value="Bharatiya Janata Party">Bharatiya Janata Party - [BJP]</option>
+                <option value="Indian National Congress">Indian National Congress - [INC]</option>
+                <option value="Aam Aadmi Party">Aam Aadmi Party - [AAP]</option>
+                <option value="Bahujan Samaj Party">Bahujan Samaj Party - [BSP]</option>
+                <option value="Communist Party of India(Marxist)">Communist Party of India(Marxist) - [CPM]</option>
+
                 {/* Add more party options as needed */}
             </Select>
             </FormGroup>

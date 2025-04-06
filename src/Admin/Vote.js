@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
-import maharashtraData from "../assets/Maharashtra.json";
+import maharashtraData from "../json/Maharashtra.json";
 
 // Color palette (consistent with existing components)
 const colors = {

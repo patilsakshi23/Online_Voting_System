@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import styled from "styled-components";
-import maharashtraData from "../assets/Maharashtra.json";
+import maharashtraData from "../json/Maharashtra.json";
 import * as faceapi from "face-api.js";
 import { database } from "../FirebaseConfig.js";
 import { ref, get, child } from "firebase/database";

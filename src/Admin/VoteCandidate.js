@@ -1,7 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import { getDatabase, ref, get, update, increment } from "firebase/database";
+
+
+// Import your success sound MP3 file
+import successSound from '../assets/sucess.mp3';
 
 // Color palette (consistent with existing components)
 const colors = {
@@ -291,6 +295,51 @@ const ButtonGroup = styled.div`
   }
 `;
 
+const SuccessSound = styled.audio`
+  display: none; // Hides the audio element
+`;
+
+// Success sound component (hidden audio element)
+const useSuccessSound = () => {
+  const audioRef = useRef(null);
+  
+  // Create audio element on mount using the imported MP3 file
+  useEffect(() => {
+    audioRef.current = new Audio(successSound);
+    
+    // Optional: Preload the audio
+    audioRef.current.load();
+    
+    return () => {
+      // Cleanup
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
+  
+  // Function to play the sound
+  const playSound = () => {
+    if (audioRef.current) {
+      // Reset the audio to start
+      audioRef.current.currentTime = 0;
+      
+      // Play the sound - using Promise to handle autoplay restrictions
+      const playPromise = audioRef.current.play();
+      
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.error("Error playing success sound:", error);
+        });
+      }
+    }
+  };
+  
+  return playSound;
+};
+
+
 const VoteCandidate = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -302,6 +351,7 @@ const VoteCandidate = () => {
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [voteInProgress, setVoteInProgress] = useState(false);
+  const [playSuccessSound, setPlaySuccessSound] = useState(false);
   
   // Get location data from navigation state
   const locationData = location.state?.location;
@@ -388,7 +438,15 @@ const VoteCandidate = () => {
           lastVoteTimestamp: Date.now()
         });
         
+        // Show success modal and play sound
         setShowSuccessModal(true);
+        setPlaySuccessSound(true);
+        
+        // Reset play sound state after a short delay
+        setTimeout(() => {
+          setPlaySuccessSound(false);
+        }, 1000);
+        
         setSelectedCandidate(null); // Clear the selected candidate after successful vote
       } else {
         throw new Error("Candidate no longer exists");
@@ -422,7 +480,6 @@ const VoteCandidate = () => {
   
   return (
     <Container>
-      
       <Title>Select Your Candidate</Title>
       <Subtitle>Please review all candidates and select one to cast your vote</Subtitle>
       
@@ -481,6 +538,9 @@ const VoteCandidate = () => {
           </ModalContainer>
         </ModalOverlay>
       )}
+      
+      {/* Success Sound Component */}
+      <SuccessSound play={playSuccessSound} />
     </Container>
   );
 };
